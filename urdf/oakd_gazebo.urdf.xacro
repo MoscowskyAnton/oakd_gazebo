@@ -1,11 +1,6 @@
 <?xml version="1.0"?>
 <robot name="depthai_camera" xmlns:xacro="http://ros.org/wiki/xacro">
     
-    <!--<xacro:arg name="camera_name"   default="oak" />
-    <xacro:arg name="camera_model"  default="OAK-D" />
-    <xacro:arg name="base_frame"    default="oak-d_frame" />
-    <xacro:arg name="parent_frame"  default="oak-d-base-frame" />-->
-    
     <xacro:include filename="$(find depthai_bridge)/urdf/include/depthai_macro.urdf.xacro"/>
 
     <xacro:macro name="depthai_camera_gazebo" params="camera_name camera_model base_frame parent_frame">
@@ -59,9 +54,9 @@
                 <camera name="left">
                     <horizontal_fov>1.3962634</horizontal_fov>
                     <image>
-                        <width>800</width>
-                        <height>800</height>
-                        <format>R8G8B8</format>
+                        <width>640</width>
+                        <height>480</height>
+                        <format>L8</format>
                     </image>
                     <clip>
                         <near>0.02</near>
@@ -78,9 +73,9 @@
                     <pose>0 -0.075 0 0 0 0</pose>
                     <horizontal_fov>1.3962634</horizontal_fov>
                     <image>
-                        <width>800</width>
-                        <height>800</height>
-                        <format>R8G8B8</format>
+                        <width>640</width>
+                        <height>480</height>
+                        <format>L8</format>
                     </image>
                     <clip>
                         <near>0.02</near>
