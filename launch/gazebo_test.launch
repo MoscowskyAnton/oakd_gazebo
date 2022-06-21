@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<launch>
+    
+    <arg name="camera_model"         default="OAK-D" />
+    <arg name="tf_prefix"            default="oak" />
+
+    <arg name="base_frame"           default="oak-d_frame" />
+    <arg name="parent_frame"         default="oak-d-base-frame" />
+    
+    <arg name="gzpose" default="-x 0 -y 0 -z 1 -R 0. -P 0. -Y 0."/>
+    <arg name="paused" default="false"/>
+    <arg name="use_sim_time" default="true"/>
+    <arg name="debug" default="false"/>
+    <arg name="gui" default="true"/>
+    
+    <param name="robot_description"
+           command="$(find xacro)/xacro '$(find oakd_gazebo)/urdf/oakd_gazebo.urdf.xacro'
+           camera_name:=$(arg tf_prefix)
+           camera_model:=$(arg camera_model)
+           base_frame:=$(arg base_frame)
+           parent_frame:=$(arg parent_frame)"/>
+
+    <node name="$(arg tf_prefix)_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen" required="true"/>
+    
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">        
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="gui" value="$(arg gui)" />
+        <arg name="paused" value="$(arg paused)"/>
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    </include>
+    
+    <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
+            args="-param robot_description -urdf $(arg gzpose) -model $(arg tf_prefix)" />
+    
+</launch>
