@@ -2,7 +2,7 @@
 <launch>
     
     <arg name="camera_model"         default="OAK-D" />
-    <arg name="tf_prefix"            default="oak" />
+    <arg name="camera_name"            default="oakd" />
 
     <arg name="base_frame"           default="oak-d_frame" />
     <arg name="parent_frame"         default="oak-d-base-frame" />
@@ -15,12 +15,12 @@
     
     <param name="robot_description"
            command="$(find xacro)/xacro '$(find oakd_gazebo)/urdf/standalone_test.urdf.xacro'
-           camera_name:=$(arg tf_prefix)
+           camera_name:=$(arg camera_name)
            camera_model:=$(arg camera_model)
            base_frame:=$(arg base_frame)
            parent_frame:=$(arg parent_frame)"/>
 
-    <node name="$(arg tf_prefix)_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen" required="true"/>
+    <node name="$(arg camera_name)_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen" required="true"/>
     
     <include file="$(find gazebo_ros)/launch/empty_world.launch">        
         <arg name="debug" value="$(arg debug)" />
@@ -31,5 +31,10 @@
     
     <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model"
             args="-param robot_description -urdf $(arg gzpose) -model camera_test" />
+    
+    <include file="$(find oakd_gazebo)/launch/depth_extraction.launch">
+        <arg name="camera_name" value="$(arg camera_name)"/>
+        <arg name="camera_path" value="/sensors/"/>
+    </include>
     
 </launch>

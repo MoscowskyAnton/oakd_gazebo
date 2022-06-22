@@ -38,7 +38,7 @@
         <origin xyz="0 0 1" rpy="0 0 0"/>
     </joint>
     
-    <xacro:depthai_camera_gazebo camera_name="oakd_top" camera_model="OAK-D" base_frame="oad-d_frame" parent_frame="fix_link"/> 
+    <xacro:depthai_camera_gazebo camera_name="oakd" camera_model="OAK-D" base_frame="oad-d_frame" parent_frame="fix_link"/> 
     
         
     

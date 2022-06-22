@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="camera_name" default="oak" />
+    <arg name="camera_path" default="/" />
+    
+    <group ns="$(arg camera_name)_gazebo_stereo">
+    
+        <node name="stereo_image_proc" pkg="stereo_image_proc" type="stereo_image_proc" >        
+        
+            <remap from="left/image_raw" to="$(arg camera_path)$(arg camera_name)/left/image" />
+            <remap from="right/image_raw" to="$(arg camera_path)$(arg camera_name)/right/image" />
+            
+            <remap from="left/camera_info" to="$(arg camera_path)$(arg camera_name)/left/camera_info" />
+            <remap from="right/camera_info" to="$(arg camera_path)$(arg camera_name)/right/camera_info" />
+            
+            <remap from="points2" to="$(arg camera_path)$(arg camera_name)/stereo/points/rgb" />
+        </node>
+        
+        <node pkg="nodelet" type="nodelet" name="stereo_proc"  args="manager"/>
+        
+        <node name="disparity_image_proc" pkg="nodelet" type="nodelet"
+              args="load disparity_image_proc/depth_image stereo_proc" output="screen">
+            <!-- Inputs -->
+            <!--<remap from="disparity"             to="$(arg disparity)"/>-->
+            <remap from="left/camera_info"      to="$(arg camera_path)$(arg camera_name)/left/camera_info"/>
+            <remap from="right/camera_info"     to="$(arg camera_path)$(arg camera_name)/right/camera_info"/>
+            <!-- Output -->
+            <remap from="~depth_image"          to="$(arg camera_path)$(arg camera_name)/stereo/depth"/>
+            <!-- Params -->
+            <param name="queue_size"         value="5"/>
+            <param name="approximate_sync"   value="true"/>
+        </node>        
+        
+        <node pkg="topic_tools" type="relay" name="info_pub" args="$(arg camera_path)$(arg camera_name)/left/camera_info $(arg camera_path)$(arg camera_name)/stereo/camera_info"/>
+        
+    
+    </group>
+    
+</launch>
