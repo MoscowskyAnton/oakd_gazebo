@@ -8,7 +8,7 @@
         <xacro:depthai_camera camera_name = "${camera_name}" parent = "${parent_frame}" camera_model = "${camera_model}" base_frame = "${base_frame}" cam_pos_x = "0" cam_pos_y = "0" cam_pos_z = "0" cam_roll = "0" cam_pitch = "0" cam_yaw = "0"/>                
         
         <!-- RGB camera -->
-        <gazebo reference="${camera_name}_rgb_camera_frame">
+        <!--<gazebo reference="${camera_name}_rgb_camera_frame">
             <sensor type="camera" name="${camera_name}_rgb_camera">
                 <update_rate>30.0</update_rate>
                 <camera name="${camera_name}_rgb_camera">
@@ -45,7 +45,7 @@
                 </plugin>
 
             </sensor>
-        </gazebo>
+        </gazebo>-->
         
         
         <!-- DEPTH -->
@@ -53,7 +53,7 @@
             <sensor name="${camera_name}_depth_camera" type="depth">
                 <update_rate>20</update_rate>
                 <camera>
-                    <horizontal_fov>1.047198</horizontal_fov>
+                    <horizontal_fov>1.3962634</horizontal_fov>
                     <image>
                         <width>640</width>
                         <height>480</height>
@@ -68,12 +68,12 @@
                     <baseline>0.2</baseline>
                     <alwaysOn>true</alwaysOn>
                     <updateRate>1.0</updateRate>
-                    <cameraName>sensors/${camera_name}/stereo</cameraName>
-                    <imageTopicName>rgb/image</imageTopicName>
-                    <cameraInfoTopicName>rgb/camera_info</cameraInfoTopicName>
-                    <depthImageTopicName>depth</depthImageTopicName>
-                    <depthImageInfoTopicName>camera_info</depthImageInfoTopicName>
-                    <pointCloudTopicName>points/rgb</pointCloudTopicName>
+                    <cameraName>sensors/${camera_name}/</cameraName>
+                    <imageTopicName>rgb/resized/image</imageTopicName>
+                    <cameraInfoTopicName>rgb/resized/camera_info</cameraInfoTopicName>
+                    <depthImageTopicName>stereo/depth</depthImageTopicName>
+                    <depthImageInfoTopicName>stereo/camera_info</depthImageInfoTopicName>
+                    <pointCloudTopicName>stereo/points/rgb</pointCloudTopicName>
                     <frameName>${camera_name}_rgb_camera_optical_frame</frameName>
                     <pointCloudCutoff>0.5</pointCloudCutoff>
                     <pointCloudCutoffMax>15.0</pointCloudCutoffMax>
