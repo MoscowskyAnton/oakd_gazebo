@@ -101,7 +101,7 @@
         <!-- TRUE STEREO -->
         <gazebo reference="${camera_name}_left_camera_frame">
             <sensor type="multicamera" name="${camera_name}_stereo_camera">
-                <update_rate>20.0</update_rate>
+                <update_rate>30.0</update_rate>
                 <camera name="left">
                     <horizontal_fov>1.3962634</horizontal_fov>
                     <image>

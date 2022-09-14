@@ -8,6 +8,9 @@ import datetime
 import message_filters
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
+import copy
+import threading
+from time import sleep
 
 def convertToCv2Frame(name, image, config, width):
     
@@ -57,15 +60,21 @@ class StereoExtractorNode(object):
         
         # vars
         self.first_it = True
+        self.data_guard = threading.Lock()
         
         # ros stuff
         self.bridge = CvBridge()
         
         #self.init_dai()
-        self.inited = False
+        #self.inited = False
+        #self.h, self.w = None, None
+        self.last_right_msg = None
+        self.last_left_msg = None
         
         # pubs
         self.depth_pub = rospy.Publisher('~depth', Image, queue_size = 1)
+        self.last_left_pub = rospy.Publisher('~last_left', Image, queue_size = 1)
+        self.last_right_pub = rospy.Publisher('~last_right', Image, queue_size = 1)
         
         # subs
         left_sub = message_filters.Subscriber('left', Image)
@@ -122,82 +131,128 @@ class StereoExtractorNode(object):
         monoLeft.out.link(stereo.left)
         monoRight.out.link(stereo.right)
         xinStereoDepthConfig.out.link(stereo.inputConfig)
-        stereo.syncedLeft.link(xoutLeft.input)
-        stereo.syncedRight.link(xoutRight.input)
+        #stereo.syncedLeft.link(xoutLeft.input)
+        #stereo.syncedRight.link(xoutRight.input)
         
         stereo.depth.link(xoutDepth.input)                
-        stereo.disparity.link(xoutDisparity.input)
+        #stereo.disparity.link(xoutDisparity.input)
         stereo.outConfig.link(xoutStereoCfg.input)
         
         stereo.setInputResolution(width, height)
-        stereo.setRectification(False)
-                
-        streams = ['depth']
+        stereo.setRectification(False)                        
         
-        self.device = dai.Device(self.pipeline)
-        
-        stereoDepthConfigInQueue = self.device.getInputQueue("stereoDepthConfig")
-        inStreams = ['in_right', 'in_left']
-        self.inStreamsCameraID = [dai.CameraBoardSocket.RIGHT, dai.CameraBoardSocket.LEFT]
-        
-        self.in_q_list = []
-        for s in inStreams:
-            q = self.device.getInputQueue(s)
-            self.in_q_list.append(q)
-        
-        # Create a receive queue for each stream
-        self.q_list = []
-        for s in streams:
-            q = self.device.getOutputQueue(s, 8, blocking=False)
-            self.q_list.append(q)
-            
-        self.inCfg = self.device.getOutputQueue("stereo_cfg", 8, blocking=False)
-        
-        self.inited = True
         rospy.loginfo('configured!')
     
     def stereo_cb(self, left_msg, right_msg):
-        if not self.inited:
-            self.init_dai(left_msg.width, left_msg.height)
-                    
+        #if not self.inited:
+            #self.init_dai(left_msg.width, left_msg.height)
+        #if self.h is None or self.w is None:
+            #self.h = left_msg.height
+            #self.w = left_msg.width
+            #return
+        #if not self.inited:
+            #return
         rospy.loginfo('got message')
-        msgs = [right_msg, left_msg]
-        for i, q in enumerate(self.in_q_list):
-            data = self.bridge.imgmsg_to_cv2(msgs[i], desired_encoding="passthrough")
-            data = data.reshape(msgs[i].height*msgs[i].width)
-            
-            tstamp = datetime.timedelta(seconds = msgs[i].header.stamp.secs,
-                                        milliseconds = msgs[i].header.stamp.nsecs * 1000000)
-            
-            img = dai.ImgFrame()
-            img.setData(data)
-            img.setTimestamp(tstamp)
-            img.setInstanceNum(self.inStreamsCameraID[i])
-            img.setType(dai.ImgFrame.Type.RAW8)
-            img.setWidth(msgs[i].width)
-            img.setHeight(msgs[i].height)
-            q.send(img)
-            if self.first_it:
-                q.send(img)
-        
-        self.first_it = False
-        currentConfig = self.inCfg.get()
-
-        lrCheckEnabled = currentConfig.get().algorithmControl.enableLeftRightCheck
-        extendedEnabled = currentConfig.get().algorithmControl.enableExtended
-        #queues = q_list.copy()            
-        
-        for q in self.q_list:            
-            data = q.get()
-            frame = convertToCv2Frame(q.getName(), data, currentConfig, left_msg.width)
-            depth_msg = self.bridge.cv2_to_imgmsg(frame, encoding='mono8')
-            self.depth_pub.publish(depth_msg)
-            
-        rospy.loginfo('message proceeded')
-            
+        with self.data_guard:
+            self.last_left_msg = left_msg
+            self.last_right_msg = right_msg                                                
     
     def run(self):
-        rospy.spin()
+        #rospy.sleep(10)
+        while not rospy.is_shutdown():
+            if not (self.last_left_msg is None and self.last_right_msg is None):
+                self.init_dai(self.last_left_msg.width, self.last_right_msg.height)
+                break
+        #self.init_dai(640, 480)
+                
+        #rospy.sleep(5)
+        with dai.Device(self.pipeline) as device:
+            streams = ['depth']
+        
+            stereoDepthConfigInQueue = device.getInputQueue("stereoDepthConfig")
+            inStreams = ['in_right', 'in_left']
+            self.inStreamsCameraID = [dai.CameraBoardSocket.RIGHT, dai.CameraBoardSocket.LEFT]
+        
+            self.in_q_list = []
+            for s in inStreams:
+                q = device.getInputQueue(s)
+                self.in_q_list.append(q)
+        
+            # Create a receive queue for each stream
+            self.q_list = []
+            for s in streams:
+                q = device.getOutputQueue(s, 30, blocking=False)
+                self.q_list.append(q)
+            
+            self.inCfg = device.getOutputQueue("stereo_cfg", 30, blocking=False)
+        
+            #self.inited = True
+            
+            #currentConfig = None
+            
+            cnt = 0
+            #timestamp_ms = 0
+            #frame_interval_ms = 33
+            while not rospy.is_shutdown():
+                if self.last_left_msg is None and self.last_right_msg is None:
+                    continue
+                with self.data_guard:
+                    msgs = [copy.copy(self.last_right_msg), copy.copy(self.last_left_msg)]
+                    self.last_left_pub.publish(self.last_left_msg)
+                    self.last_right_pub.publish(self.last_right_msg)
+                    self.last_left_msg = None
+                    self.last_right_msg = None
+                
+                
+                for i, q in enumerate(self.in_q_list):
+                    rospy.logwarn(f"sending {q.getName()}...")
+                    data = self.bridge.imgmsg_to_cv2(msgs[i], desired_encoding="passthrough")
+                    data = data.reshape(msgs[i].height*msgs[i].width)
+                    
+                    tstamp = datetime.timedelta(seconds = msgs[i].header.stamp.secs,
+                                                milliseconds = msgs[i].header.stamp.nsecs * 1000000)
+                    
+                    #tstamp = datetime.timedelta(seconds = timestamp_ms // 1000,
+                                                #milliseconds = timestamp_ms % 1000)
+                    img = dai.ImgFrame()
+                    img.setData(data)
+                    img.setTimestamp(tstamp)
+                    img.setInstanceNum(self.inStreamsCameraID[i])
+                    img.setType(dai.ImgFrame.Type.RAW8)
+                    img.setWidth(msgs[i].width)
+                    img.setHeight(msgs[i].height)
+                    q.send(img)
+                    #if timestamp_ms == 0:  # Send twice for first iteration
+                        #q.send(img)
+                    #if self.first_it:
+                        #q.send(img)
+                        
+                #timestamp_ms += frame_interval_ms
+                #sleep(frame_interval_ms/1000)
+                
+                #rospy.sleep(0.1)
+                rospy.logwarn("get configing...")
+                #self.first_it = False
+                #if currentConfig is None:
+                currentConfig = self.inCfg.get()
+
+                #lrCheckEnabled = currentConfig.get().algorithmControl.enableLeftRightCheck
+                #extendedEnabled = currentConfig.get().algorithmControl.enableExtended
+                #queues = q_list.copy()            
+                rospy.logwarn("getting...")
+                for q in self.q_list:            
+                    data = q.get()
+                    
+                    frame = convertToCv2Frame(q.getName(), data, currentConfig, msgs[0].width)
+                    depth_msg = self.bridge.cv2_to_imgmsg(frame, encoding='mono8')
+                    self.depth_pub.publish(depth_msg)
+                
+                cnt+=1
+                rospy.loginfo(f'{cnt} message proceeded')
+                
+                
+                
+        #rospy.spin()
         
 if __name__ == '__main__':
     
