@@ -1,0 +1,10 @@
+<launch>
+
+    <node name="oakd_depth" pkg="oakd_gazebo" type="stereo_extractor_node.py" output="screen">
+        
+        <remap from="right" to="/ritrover/sensors/oakd_fwd/right/image"/>
+        <remap from="left" to="/ritrover/sensors/oakd_fwd/left/image"/>
+        
+    </node>
+    
+</launch>
