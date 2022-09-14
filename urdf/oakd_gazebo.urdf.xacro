@@ -103,7 +103,7 @@
             <sensor type="multicamera" name="${camera_name}_stereo_camera">
                 <update_rate>30.0</update_rate>
                 <camera name="left">
-                    <horizontal_fov>1.3962634</horizontal_fov>
+                    <horizontal_fov>1.27409</horizontal_fov>
                     <image>
                         <width>640</width>
                         <height>480</height>
@@ -122,7 +122,7 @@
                 
                 <camera name="right">
                     <pose>0 -0.075 0 0 0 0</pose>
-                    <horizontal_fov>1.3962634</horizontal_fov>
+                    <horizontal_fov>1.27409</horizontal_fov>
                     <image>
                         <width>640</width>
                         <height>480</height>
@@ -149,11 +149,12 @@
                     <rightFrameName>${camera_name}_right_camera_optical_frame</rightFrameName>
                     
                     <hackBaseline>0.075</hackBaseline>
-                    <distortionK1>0.0</distortionK1>
-                    <distortionK2>0.0</distortionK2>
-                    <distortionK3>0.0</distortionK3>
-                    <distortionT1>0.0</distortionT1>
-                    <distortionT2>0.0</distortionT2>
+                    <distortionK1>-9.084935188293457</distortionK1>
+                    <distortionK2>20.569795608520508</distortionK2>
+                    <distortionK3>59.361846923828125</distortionK3>
+                    <distortionT1>-0.000602584274020046</distortionT1>
+                    <distortionT2>-0.0005846155690960586</distortionT2>
+                    
                 </plugin>
             </sensor>
         </gazebo>

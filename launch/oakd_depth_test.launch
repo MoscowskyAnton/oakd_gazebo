@@ -2,8 +2,11 @@
 
     <node name="oakd_depth" pkg="oakd_gazebo" type="stereo_extractor_node.py" output="screen">
         
+        <param name="depth_frame" value="oak_right_camera_optical_frame"/>
+        
         <remap from="right" to="/ritrover/sensors/oakd_fwd/right/image"/>
         <remap from="left" to="/ritrover/sensors/oakd_fwd/left/image"/>
+        <remap from="right/info" to="/ritrover/sensors/oakd_fwd/right/camera_info"/>
         
     </node>
     

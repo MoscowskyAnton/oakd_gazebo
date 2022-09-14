@@ -6,45 +6,17 @@ import depthai as dai
 import rospy
 import datetime
 import message_filters
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 import copy
 import threading
 from time import sleep
 
-def convertToCv2Frame(name, image, config, width):
-    
-    baseline = 75
-    fov = 71.86
-    focal = width / (2 * np.tan(fov / 2 / 180 * np.pi))
-
-    maxDisp = config.getMaxDisparity()
-    subpixelLevels = pow(2, config.get().algorithmControl.subpixelFractionalBits)
-    subpixel = config.get().algorithmControl.enableSubpixel
-    dispIntegerLevels = maxDisp if not subpixel else maxDisp / subpixelLevels
-
-    frame = image.getFrame()
-
-    # frame.tofile(name+".raw")
-
-    if name == 'depth':
-        dispScaleFactor = baseline * focal
-        with np.errstate(divide='ignore'):
-            frame = dispScaleFactor / frame
-
-        frame = (frame * 255. / dispIntegerLevels).astype(np.uint8)
-        #frame = cv2.applyColorMap(frame, cv2.COLORMAP_HOT)
-    elif 'confidence_map' in name:
-        pass
-    elif name == 'disparity_cost_dump':
-        # frame.tofile(name+'.raw')
-        pass
-    elif 'disparity' in name:
-        if 1: # Optionally, extend disparity range to better visualize it
-            frame = (frame * 255. / maxDisp).astype(np.uint8)
-        # if 1: # Optionally, apply a color map
-        #     frame = cv2.applyColorMap(frame, cv2.COLORMAP_HOT)
-
+def convertToCv2Frame(name, image, config, focal):
+        
+    frame = image.getFrame()    
+    if name == 'depth':        
+        frame = (frame).astype(np.uint16)
     return frame
 
 class StereoExtractorNode(object):
@@ -57,6 +29,7 @@ class StereoExtractorNode(object):
         self.lrcheck =  rospy.get_param('~lrcheck', True)
         self.extended = rospy.get_param('~extended', False)
         self.subpixel = rospy.get_param('~subpixel', True)
+        #self.depth_frame = rospy.get_param('~depth_frame', "")
         
         # vars
         self.first_it = True
@@ -64,25 +37,21 @@ class StereoExtractorNode(object):
         
         # ros stuff
         self.bridge = CvBridge()
-        
-        #self.init_dai()
-        #self.inited = False
-        #self.h, self.w = None, None
+                
         self.last_right_msg = None
         self.last_left_msg = None
+        self.last_info_msg = None
         
         # pubs
-        self.depth_pub = rospy.Publisher('~depth', Image, queue_size = 1)
-        self.last_left_pub = rospy.Publisher('~last_left', Image, queue_size = 1)
-        self.last_right_pub = rospy.Publisher('~last_right', Image, queue_size = 1)
+        self.depth_pub = rospy.Publisher('~depth', Image, queue_size = 1)        
+        self.info_pub = rospy.Publisher('~camera_info', CameraInfo, queue_size = 1)        
         
         # subs
         left_sub = message_filters.Subscriber('left', Image)
         right_sub = message_filters.Subscriber('right', Image)
+        info_sub = message_filters.Subscriber('right/info', CameraInfo)
         
-        ts = message_filters.ApproximateTimeSynchronizer([left_sub, right_sub], 10, 0.1, allow_headerless=False)
-        
-        #rospy.Subscriber('left/camera_info', )
+        ts = message_filters.ApproximateTimeSynchronizer([left_sub, right_sub, info_sub], 10, 0.1, allow_headerless=False)                
         
         rospy.loginfo('waiting for messages...')
         ts.registerCallback(self.stereo_cb)
@@ -96,27 +65,15 @@ class StereoExtractorNode(object):
         monoLeft = self.pipeline.create(dai.node.XLinkIn)
         monoRight = self.pipeline.create(dai.node.XLinkIn)
         xinStereoDepthConfig = self.pipeline.create(dai.node.XLinkIn)
-        
-        xoutLeft = self.pipeline.create(dai.node.XLinkOut)
-        xoutRight = self.pipeline.create(dai.node.XLinkOut)
-        xoutDepth = self.pipeline.create(dai.node.XLinkOut)
-        xoutConfMap = self.pipeline.create(dai.node.XLinkOut)
-        xoutDisparity = self.pipeline.create(dai.node.XLinkOut)
-        xoutRectifLeft = self.pipeline.create(dai.node.XLinkOut)
-        xoutRectifRight = self.pipeline.create(dai.node.XLinkOut)
+                
+        xoutDepth = self.pipeline.create(dai.node.XLinkOut)        
         xoutStereoCfg = self.pipeline.create(dai.node.XLinkOut)
         
         xinStereoDepthConfig.setStreamName("stereoDepthConfig")
         monoLeft.setStreamName('in_left')
         monoRight.setStreamName('in_right')
-
-        xoutLeft.setStreamName('left')
-        xoutRight.setStreamName('right')
-        xoutDepth.setStreamName('depth')
-        xoutConfMap.setStreamName('confidence_map')
-        xoutDisparity.setStreamName('disparity')
-        xoutRectifLeft.setStreamName('rectified_left')
-        xoutRectifRight.setStreamName('rectified_right')
+        
+        xoutDepth.setStreamName('depth')        
         xoutStereoCfg.setStreamName('stereo_cfg')
         
         stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
@@ -130,12 +87,9 @@ class StereoExtractorNode(object):
         # Linking
         monoLeft.out.link(stereo.left)
         monoRight.out.link(stereo.right)
-        xinStereoDepthConfig.out.link(stereo.inputConfig)
-        #stereo.syncedLeft.link(xoutLeft.input)
-        #stereo.syncedRight.link(xoutRight.input)
+        xinStereoDepthConfig.out.link(stereo.inputConfig)        
         
-        stereo.depth.link(xoutDepth.input)                
-        #stereo.disparity.link(xoutDisparity.input)
+        stereo.depth.link(xoutDepth.input)                        
         stereo.outConfig.link(xoutStereoCfg.input)
         
         stereo.setInputResolution(width, height)
@@ -143,29 +97,20 @@ class StereoExtractorNode(object):
         
         rospy.loginfo('configured!')
     
-    def stereo_cb(self, left_msg, right_msg):
-        #if not self.inited:
-            #self.init_dai(left_msg.width, left_msg.height)
-        #if self.h is None or self.w is None:
-            #self.h = left_msg.height
-            #self.w = left_msg.width
-            #return
-        #if not self.inited:
-            #return
-        rospy.loginfo('got message')
+    def stereo_cb(self, left_msg, right_msg, info_msg):                
         with self.data_guard:
             self.last_left_msg = left_msg
-            self.last_right_msg = right_msg                                                
+            self.last_right_msg = right_msg      
+            self.last_info = info_msg
     
-    def run(self):
-        #rospy.sleep(10)
+    def run(self):   
+        # wait data for init
         while not rospy.is_shutdown():
             if not (self.last_left_msg is None and self.last_right_msg is None):
                 self.init_dai(self.last_left_msg.width, self.last_right_msg.height)
-                break
-        #self.init_dai(640, 480)
+                break        
                 
-        #rospy.sleep(5)
+        # processing
         with dai.Device(self.pipeline) as device:
             streams = ['depth']
         
@@ -185,35 +130,27 @@ class StereoExtractorNode(object):
                 self.q_list.append(q)
             
             self.inCfg = device.getOutputQueue("stereo_cfg", 30, blocking=False)
-        
-            #self.inited = True
-            
-            #currentConfig = None
-            
-            cnt = 0
-            #timestamp_ms = 0
-            #frame_interval_ms = 33
+                                            
+            calibData = device.readCalibration()
+            M, _, _ = calibData.getDefaultIntrinsics(dai.CameraBoardSocket.RIGHT)
+            focal = M[0][0]
+                                            
             while not rospy.is_shutdown():
                 if self.last_left_msg is None and self.last_right_msg is None:
                     continue
                 with self.data_guard:
-                    msgs = [copy.copy(self.last_right_msg), copy.copy(self.last_left_msg)]
-                    self.last_left_pub.publish(self.last_left_msg)
-                    self.last_right_pub.publish(self.last_right_msg)
+                    msgs = [copy.copy(self.last_right_msg), copy.copy(self.last_left_msg)]                    
+                    info = self.last_info
                     self.last_left_msg = None
-                    self.last_right_msg = None
+                    self.last_right_msg = None                
                 
-                
-                for i, q in enumerate(self.in_q_list):
-                    rospy.logwarn(f"sending {q.getName()}...")
+                for i, q in enumerate(self.in_q_list):                    
                     data = self.bridge.imgmsg_to_cv2(msgs[i], desired_encoding="passthrough")
                     data = data.reshape(msgs[i].height*msgs[i].width)
                     
                     tstamp = datetime.timedelta(seconds = msgs[i].header.stamp.secs,
                                                 milliseconds = msgs[i].header.stamp.nsecs * 1000000)
-                    
-                    #tstamp = datetime.timedelta(seconds = timestamp_ms // 1000,
-                                                #milliseconds = timestamp_ms % 1000)
+                                        
                     img = dai.ImgFrame()
                     img.setData(data)
                     img.setTimestamp(tstamp)
@@ -222,37 +159,22 @@ class StereoExtractorNode(object):
                     img.setWidth(msgs[i].width)
                     img.setHeight(msgs[i].height)
                     q.send(img)
-                    #if timestamp_ms == 0:  # Send twice for first iteration
-                        #q.send(img)
-                    #if self.first_it:
-                        #q.send(img)
-                        
-                #timestamp_ms += frame_interval_ms
-                #sleep(frame_interval_ms/1000)
-                
-                #rospy.sleep(0.1)
-                rospy.logwarn("get configing...")
-                #self.first_it = False
-                #if currentConfig is None:
-                currentConfig = self.inCfg.get()
-
-                #lrCheckEnabled = currentConfig.get().algorithmControl.enableLeftRightCheck
-                #extendedEnabled = currentConfig.get().algorithmControl.enableExtended
-                #queues = q_list.copy()            
-                rospy.logwarn("getting...")
-                for q in self.q_list:            
-                    data = q.get()
                     
-                    frame = convertToCv2Frame(q.getName(), data, currentConfig, msgs[0].width)
-                    depth_msg = self.bridge.cv2_to_imgmsg(frame, encoding='mono8')
-                    self.depth_pub.publish(depth_msg)
                 
-                cnt+=1
-                rospy.loginfo(f'{cnt} message proceeded')
+                currentConfig = self.inCfg.get()                                
                 
-                
-                
-        #rospy.spin()
+                for q in self.q_list:         
+                    if q.getName() == 'depth':
+                        data = q.get().getFrame()                  
+                        #frame = convertToCv2Frame(q.getName(), data, currentConfig, focal)
+                        frame = data.astype(np.uint16)
+                        depth_msg = self.bridge.cv2_to_imgmsg(frame, encoding='mono16')
+                        depth_msg.header = info.header                    
+                        
+                        self.depth_pub.publish(depth_msg)
+                        self.info_pub.publish(info)
+                    
+                                
         
 if __name__ == '__main__':
     
