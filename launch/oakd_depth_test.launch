@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <launch>
 
     <node name="oakd_depth" pkg="oakd_gazebo" type="stereo_extractor_node.py" output="screen">
