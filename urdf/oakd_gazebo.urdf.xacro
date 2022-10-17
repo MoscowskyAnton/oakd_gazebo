@@ -1,21 +1,24 @@
 <?xml version="1.0"?>
 <robot name="depthai_camera" xmlns:xacro="http://ros.org/wiki/xacro">
 
-    <xacro:arg name="real_depth" default="false"/>
+    <xacro:arg name="sim_depth" default="true"/>
     <xacro:arg name="hd_rgb" default="true"/>
+    <xacro:arg name="stereo" default="true"/>
+    
+    <xacro:arg name="rgb_name" default="rgb"/>
         
     <xacro:include filename="$(find depthai_bridge)/urdf/include/depthai_macro.urdf.xacro"/>
 
-    <xacro:macro name="depthai_camera_gazebo" params="camera_name camera_model base_frame parent_frame">
+    <xacro:macro name="depthai_camera_gazebo" params="camera_name camera_model base_frame parent_frame tf_prefix">
     
-        <xacro:depthai_camera camera_name = "${camera_name}" parent = "${parent_frame}" camera_model = "${camera_model}" base_frame = "${base_frame}" cam_pos_x = "0" cam_pos_y = "0" cam_pos_z = "0" cam_roll = "0" cam_pitch = "0" cam_yaw = "0"/>                
+        <xacro:depthai_camera camera_name = "${tf_prefix}${camera_name}" parent = "${parent_frame}" camera_model = "${camera_model}" base_frame = "${base_frame}" cam_pos_x = "0" cam_pos_y = "0" cam_pos_z = "0" cam_roll = "0" cam_pitch = "0" cam_yaw = "0"/>                
         
         <!-- RGB HD camera -->
         <xacro:if value="$(arg hd_rgb)">
-            <gazebo reference="${camera_name}_rgb_camera_frame">
-                <sensor type="camera" name="${camera_name}_rgb_camera">
+            <gazebo reference="${tf_prefix}${camera_name}_rgb_camera_frame">
+                <sensor type="camera" name="${tf_prefix}${camera_name}_rgb_camera">
                     <update_rate>30.0</update_rate>
-                    <camera name="${camera_name}_rgb_camera">
+                    <camera name="${tf_prefix}${camera_name}_rgb_camera">
                         <horizontal_fov>1.3962634</horizontal_fov>
                         <image>
                             <width>1920</width>
@@ -39,7 +42,7 @@
                         <cameraName>sensors/${camera_name}/rgb</cameraName>
                         <imageTopicName>image</imageTopicName>
                         <cameraInfoTopicName>camera_info</cameraInfoTopicName>
-                        <frameName>${camera_name}_rgb_camera_optical_frame</frameName>
+                        <frameName>${tf_prefix}${camera_name}_rgb_camera_optical_frame</frameName>
                         <hackBaseline>0.07</hackBaseline>
                         <distortionK1>0.0</distortionK1>
                         <distortionK2>0.0</distortionK2>
@@ -51,12 +54,11 @@
                 </sensor>
             </gazebo>
         </xacro:if>
-        
-        
+                
         <!-- DEPTH -->
-        <xacro:if value="$(arg real_depth)">
-            <gazebo reference="${camera_name}_rgb_camera_frame">
-                <sensor name="${camera_name}_depth_camera" type="depth">
+        <xacro:if value="$(arg sim_depth)">
+            <gazebo reference="${tf_prefix}${camera_name}_rgb_camera_frame">
+                <sensor name="${tf_prefix}${camera_name}_depth_camera" type="depth">
                     <update_rate>20</update_rate>
                     <camera>
                         <horizontal_fov>1.3962634</horizontal_fov>
@@ -70,17 +72,18 @@
                             <far>15</far>
                         </clip>
                     </camera>
-                    <plugin name="${camera_name}_depth_controller" filename="libgazebo_ros_openni_kinect.so">
+                    <plugin name="${tf_prefix}${camera_name}_depth_controller" filename="libgazebo_ros_openni_kinect.so">
                         <baseline>0.2</baseline>
                         <alwaysOn>true</alwaysOn>
                         <updateRate>1.0</updateRate>
                         <cameraName>sensors/${camera_name}/</cameraName>
-                        <imageTopicName>rgb/resized/image</imageTopicName>
-                        <cameraInfoTopicName>rgb/resized/camera_info</cameraInfoTopicName>
+                        <imageTopicName>$(arg rgb_name)/resized/image</imageTopicName>
+                        <cameraInfoTopicName>$(arg rgb_name)/resized/camera_info</cameraInfoTopicName>
                         <depthImageTopicName>stereo/depth</depthImageTopicName>
-                        <depthImageInfoTopicName>stereo/camera_info</depthImageInfoTopicName>
+                        <!--<depthImageInfoTopicName>/stereo/camera_info</depthImageInfoTopicName>-->
+                        <!-- Gazebo does not care of this parameter and publishes info to ...camera_name/depth/camera_info-->
                         <pointCloudTopicName>stereo/points/rgb</pointCloudTopicName>
-                        <frameName>${camera_name}_rgb_camera_optical_frame</frameName>
+                        <frameName>${tf_prefix}${camera_name}_rgb_camera_optical_frame</frameName>
                         <pointCloudCutoff>0.5</pointCloudCutoff>
                         <pointCloudCutoffMax>15.0</pointCloudCutoffMax>
                         <distortionK1>0.00000001</distortionK1>
@@ -99,65 +102,67 @@
         </xacro:if>
         
         <!-- TRUE STEREO -->
-        <gazebo reference="${camera_name}_left_camera_frame">
-            <sensor type="multicamera" name="${camera_name}_stereo_camera">
-                <update_rate>30.0</update_rate>
-                <camera name="left">
-                    <horizontal_fov>1.27409</horizontal_fov>
-                    <image>
-                        <width>640</width>
-                        <height>480</height>
-                        <format>L8</format>
-                    </image>
-                    <clip>
-                        <near>0.02</near>
-                        <far>300</far>
-                    </clip>
-                    <noise>
-                        <type>gaussian</type>
-                        <mean>0.0</mean>
-                        <stddev>0.007</stddev>
-                    </noise>
-                </camera>
-                
-                <camera name="right">
-                    <pose>0 -0.075 0 0 0 0</pose>
-                    <horizontal_fov>1.27409</horizontal_fov>
-                    <image>
-                        <width>640</width>
-                        <height>480</height>
-                        <format>L8</format>
-                    </image>
-                    <clip>
-                        <near>0.02</near>
-                        <far>300</far>
-                    </clip>
-                    <noise>
-                        <type>gaussian</type>
-                        <mean>0.0</mean>
-                        <stddev>0.007</stddev>
-                    </noise>
-                </camera>
-                
-                <plugin name="stereo_camera_controller" filename="libgazebo_ros_multicamera.so">
-                    <alwaysOn>true</alwaysOn>
-                    <updateRate>0.0</updateRate>
-                    <cameraName>sensors/${camera_name}</cameraName>
-                    <imageTopicName>image</imageTopicName>
-                    <cameraInfoTopicName>camera_info</cameraInfoTopicName>
-                    <frameName>${camera_name}_left_camera_optical_frame</frameName>
-                    <rightFrameName>${camera_name}_right_camera_optical_frame</rightFrameName>
+        <xacro:if value="$(arg stereo)">
+            <gazebo reference="${tf_prefix}${camera_name}_left_camera_frame">
+                <sensor type="multicamera" name="${tf_prefix}${camera_name}_stereo_camera">
+                    <update_rate>30.0</update_rate>
+                    <camera name="left">
+                        <horizontal_fov>1.27409</horizontal_fov>
+                        <image>
+                            <width>640</width>
+                            <height>480</height>
+                            <format>L8</format>
+                        </image>
+                        <clip>
+                            <near>0.02</near>
+                            <far>300</far>
+                        </clip>
+                        <noise>
+                            <type>gaussian</type>
+                            <mean>0.0</mean>
+                            <stddev>0.007</stddev>
+                        </noise>
+                    </camera>
                     
-                    <hackBaseline>0.075</hackBaseline>
-                    <distortionK1>-9.084935188293457</distortionK1>
-                    <distortionK2>20.569795608520508</distortionK2>
-                    <distortionK3>59.361846923828125</distortionK3>
-                    <distortionT1>-0.000602584274020046</distortionT1>
-                    <distortionT2>-0.0005846155690960586</distortionT2>
+                    <camera name="right">
+                        <pose>0 -0.075 0 0 0 0</pose>
+                        <horizontal_fov>1.27409</horizontal_fov>
+                        <image>
+                            <width>640</width>
+                            <height>480</height>
+                            <format>L8</format>
+                        </image>
+                        <clip>
+                            <near>0.02</near>
+                            <far>300</far>
+                        </clip>
+                        <noise>
+                            <type>gaussian</type>
+                            <mean>0.0</mean>
+                            <stddev>0.007</stddev>
+                        </noise>
+                    </camera>
                     
-                </plugin>
-            </sensor>
-        </gazebo>
+                    <plugin name="stereo_camera_controller" filename="libgazebo_ros_multicamera.so">
+                        <alwaysOn>true</alwaysOn>
+                        <updateRate>0.0</updateRate>
+                        <cameraName>sensors/${camera_name}</cameraName>
+                        <imageTopicName>image</imageTopicName>
+                        <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+                        <frameName>${tf_prefix}${camera_name}_left_camera_optical_frame</frameName>
+                        <rightFrameName>${camera_name}_right_camera_optical_frame</rightFrameName>
+                        
+                        <hackBaseline>0.075</hackBaseline>
+                        <distortionK1>-9.084935188293457</distortionK1>
+                        <distortionK2>20.569795608520508</distortionK2>
+                        <distortionK3>59.361846923828125</distortionK3>
+                        <distortionT1>-0.000602584274020046</distortionT1>
+                        <distortionT2>-0.0005846155690960586</distortionT2>
+                        
+                    </plugin>
+                </sensor>
+            </gazebo>
+        </xacro:if>
         
     </xacro:macro>
                        
